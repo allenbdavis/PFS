@@ -1,6 +1,5 @@
 import numpy as np
-
-
+from bodies import *
 
 
 def observe_system(system):
