@@ -128,13 +128,13 @@ class Planet:
 
         if self.mass is None:
             # Determine mass in mEarth
-            assert type(self.K) is float or type(self.K) is int, "Planet semi-amplitude, K, was not set."
+            assert type(self.K) is float or type(self.K) is int or type(self.K) is np.float64, "Planet semi-amplitude, K, was not set."
             self.mass = (2. * np.pi * G / (self.period * day)) ** (-1./3) * (self.K * np.sqrt(1 - self.ecc ** 2.)) * (
                             1./(mEarth * self.sini)) * ((self.system.star.mass * mSun) ** (2./3))
 
         if self.K is None:
             # Determine semi-amplitude in m/s
-            assert type(self.mass) is float or type(self.mass) is int, "Planet mass was not set."
+            assert type(self.mass) is float or type(self.mass) is int or type(self.mass) is np.float64, "Planet mass was not set."
             self.K = (2. * np.pi * G / (self.period * day)) ** (1./3) * (self.mass * mEarth * self.sini) * (
                         (self.system.star.mass * mSun) ** (-2./3)) * (1./np.sqrt(1 - self.ecc ** 2.))
 
