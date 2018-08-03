@@ -11,9 +11,14 @@ class System:
         Parameters
         ----------
         star: Star
-        planets: list of Planets
+        planets: Planet or list of Planets
         """
         self.star = star
+
+        # Force list, in case fed a single planet
+        if type(planets) is Planet:
+            planets = [planets]
+
         periods = [pl.period for pl in planets]
         planets_sorted = [pl for _, pl in sorted(zip(periods, planets))]
         self.planets = planets_sorted  # self.planets are sorted in order of increasing period
@@ -28,12 +33,14 @@ class Star:
     """
     Object containing star parameters.
     """
-    def __init__(self, mass=1.0, name='', ra=None, dec=None):
+    def __init__(self, mass=1.0, v0=0., name='', ra=None, dec=None):
         """
         Parameters
         ----------
         mass: float
             Solar masses
+        v0: float
+            Offset velocity of star (m/s)
         name: str
             Name of star
         ra: None or [TBD]
@@ -46,10 +53,11 @@ class Star:
         self.ra = ra
         self.dec = dec
         self.system = None
+        self.v0 = v0
 
     def set_system(self, system):
         """Attach System to this Star"""
-        self.system(system)
+        self.system = system
 
 
 class Planet:
@@ -93,7 +101,6 @@ class Planet:
         self.mass = mass
         self.K = K
         self.sma = sma
-        self.v0 = v0
         self.name = name
         self.is_real = is_real
         self.random = random
@@ -121,13 +128,13 @@ class Planet:
 
         if self.mass is None:
             # Determine mass in mEarth
-            assert self.K is float or self.K is int, "Planet semi-amplitude, K, was not set."
+            assert type(self.K) is float or type(self.K) is int, "Planet semi-amplitude, K, was not set."
             self.mass = (2. * np.pi * G / (self.period * day)) ** (-1./3) * (self.K * np.sqrt(1 - self.ecc ** 2.)) * (
                             1./(mEarth * self.sini)) * ((self.system.star.mass * mSun) ** (2./3))
 
         if self.K is None:
             # Determine semi-amplitude in m/s
-            assert self.mass is float or self.mass is int, "Planet mass was not set."
+            assert type(self.mass) is float or type(self.mass) is int, "Planet mass was not set."
             self.K = (2. * np.pi * G / (self.period * day)) ** (1./3) * (self.mass * mEarth * self.sini) * (
                         (self.system.star.mass * mSun) ** (-2./3)) * (1./np.sqrt(1 - self.ecc ** 2.))
 
