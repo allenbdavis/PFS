@@ -3,7 +3,7 @@ from bodies import *
 import orbit
 
 
-def observe_system(system, run_length, weather=0.):
+def observe_system(system, run_length, weather=0., noise=0.):
     """
     Generate time-series of mock RV observations of a system.
 
@@ -15,6 +15,8 @@ def observe_system(system, run_length, weather=0.):
         Number of days over which to observe (before accounting for weather)
     weather: float
         What fraction of nights are missed due to poor weather
+    noise: float
+        Scale of white-noise (m/s)
 
     Returns
     -------
@@ -22,6 +24,8 @@ def observe_system(system, run_length, weather=0.):
         List of JDs when observations occurred successfully
     RVs: 1D array
         List of corresponding radial velocities for the system
+    estimated_errors: 1D array
+        List of 1-sigma uncertainties for each data point
     """
 
     times = []
@@ -31,10 +35,10 @@ def observe_system(system, run_length, weather=0.):
             times.append(i)
         i += 1
     times = np.array(times)
-
-    RVs = get_system_RVs(system, times)
-
-    return times, RVs
+    estimated_errors = np.array([noise for _ in range(len(times))])
+    actual_errors = np.random.normal(loc=0, scale=noise, size=len(times))
+    RVs = get_system_RVs(system, times) + actual_errors
+    return times, RVs, estimated_errors
 
 
 def get_system_RVs(system, times):
@@ -75,11 +79,20 @@ if __name__ == '__main__':
     system = System(star, [planet_b])
 
     # Create time-series
-    times, RVs = observe_system(system=system, run_length=180, weather=0.5)
+    times, RVs, errors = observe_system(system=system, run_length=180, weather=0.5, noise=3.)
 
+    # Ideal orbit
+    times_ideal = np.arange(times[0], times[-1]+0.01, 0.01)
+    RVs_ideal = get_system_RVs(system, times_ideal)
     import matplotlib.pyplot as plt
     plt.figure()
-    plt.plot(times, RVs, 'o-')
+    plt.errorbar(times, RVs, yerr=errors, marker='o', linestyle='', label='observed')
+    plt.plot(times_ideal, RVs_ideal, marker='', linestyle='-', label='true')
+    plt.legend()
+    plt.title('')
     plt.xlabel('JD')
     plt.ylabel('RV (m/s)')
     plt.show()
+
+    # Fit the planet
+    # rv_fitted =
