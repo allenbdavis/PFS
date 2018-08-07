@@ -33,7 +33,7 @@ class Star:
     """
     Object containing star parameters.
     """
-    def __init__(self, mass=1.0, v0=0., name='', ra=None, dec=None):
+    def __init__(self, mass=1.0, v0=0., t0=0., name='', ra=None, dec=None):
         """
         Parameters
         ----------
@@ -41,6 +41,8 @@ class Star:
             Solar masses
         v0: float
             Offset velocity of star (m/s)
+        t0: float
+            JD of start of observations
         name: str
             Name of star
         ra: None or [TBD]
@@ -54,6 +56,7 @@ class Star:
         self.dec = dec
         self.system = None
         self.v0 = v0
+        self.t0 = t0
 
     def set_system(self, system):
         """Attach System to this Star"""
@@ -65,7 +68,7 @@ class Planet:
     Object containing planet parameters.
     """
     def __init__(self, period, ecc=0., incl=90., w=None, tp=None,
-                 mass=None, K=None, sma=None, v0=0., name='', is_real=True, random=False):
+                 mass=None, K=None, sma=None, name='', is_real=True, random=False):
         """
         Parameters
         ----------
@@ -84,8 +87,6 @@ class Planet:
             Doppler semi-amplitude (m/s)
         sma: float or None
             Semi-major axis (AU)
-        v0: float
-            Velocity offset (m/s)
         name: str
             If blank, is set to star's name
         is_real: bool
@@ -124,7 +125,7 @@ class Planet:
                 self.w = 0.
 
         if self.tp is None:
-            self.tp = 2458331 + (self.period * np.random.random())
+            self.tp = system.star.t0 + (self.period * np.random.random())
 
         if self.mass is None:
             # Determine mass in mEarth
