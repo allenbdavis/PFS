@@ -1,5 +1,5 @@
 import numpy as np
-from bodies import *
+from bodies import System, Star, Planet
 import orbit
 import fitting as fit
 import plots
@@ -72,42 +72,43 @@ if __name__ == '__main__':
     """
 
     # Create star
-    star = Star(mass=1.2, v0=0., t0=0., name="Allen's star")
+    the_star = Star(mass=1.2, v0=0., t0=0., name="Allen's star")
 
     # Create Planets
-    planet_b = Planet(period=60.52, ecc=0.1, mass=10.)
+    planet_b = Planet(period=60.52, ecc=0.1, mass=10., random=True)
 
     # Create System
-    system = System(star, [planet_b])
+    the_system = System(the_star, [planet_b])
 
     # Create time-series
-    times, RVs, errors = observe_system(system=system, run_length=180, weather=0.5, noise=1.)
+    t, rv, errors = observe_system(system=the_system, run_length=180, weather=0.5, noise=.2)
 
     # Ideal orbit
-    times_ideal = np.arange(times[0], times[-1]+0.01, 0.01)
-    RVs_ideal = get_system_RVs(system, times_ideal)
+    times_ideal = np.arange(t[0], t[-1]+0.01, 0.01)
+    RVs_ideal = get_system_RVs(the_system, times_ideal)
 
     # Fit the planet
-    results = fit.fit_Keplerian(times, RVs, report=True,
-                                P=[60, 58, 62],
-                                e=[0.2, 0.01, 0.4],
-                                tp=None,
-                                w=[0, -np.inf, np.inf],
-                                K=[1, 0, 200],
-                                v0=[0., -200, 200])
-    P_fit = results['P']
-    e_fit = results['e']
-    tp_fit = results['tp']
-    w_fit = results['w']
-    K_fit = results['K']
-    v0_fit = results['v0']
-    results_boot = fit.bootstrap_MC(times, RVs, errors, n_iter=50,
-                                    P=[P_fit, P_fit-1, P_fit+1],
-                                    e=[e_fit, 0.01, 0.9],
-                                    tp=[tp_fit, -np.inf, np.inf],
-                                    w=[w_fit, -np.inf, np.inf],
-                                    K=[K_fit, 0, K_fit*3],
-                                    v0=[v0_fit, v0_fit-30, v0_fit+30])
+    params_fit, residuals = fit.fit_Keplerian(t, rv, report=True,
+                                              P=[60, 58, 62],
+                                              e=[0.2, 0.01, 0.4],
+                                              tp=None,
+                                              w=[0, -np.inf, np.inf],
+                                              K=[1, 0, 200],
+                                              v0=[0., -200, 200])
+    P_fit = params_fit['P']
+    e_fit = params_fit['e']
+    tp_fit = params_fit['tp']
+    w_fit = params_fit['w']
+    K_fit = params_fit['K']
+    v0_fit = params_fit['v0']
+    params_boot = fit.bootstrap_MC(t, rv, errors, n_iter=200,
+                                   P=[P_fit, P_fit-1, P_fit+1],
+                                   e=[e_fit, 0.01, 0.9],
+                                   tp=[tp_fit, -np.inf, np.inf],
+                                   w=[w_fit, -np.inf, np.inf],
+                                   K=[K_fit, 0, K_fit*3],
+                                   v0=[v0_fit, v0_fit-30, v0_fit+30])
 
-    plots.plot_fit(times, RVs, errors=errors, system=system, param_fit=results, param_boots=results_boot)
-    plots.plot_uncertainties(results, results_boot, star=star, planet=planet_b)
+    plots.plot_fit(t, rv, errors=errors, system=the_system, param_fit=params_fit, param_boots=params_boot,
+                   phase_fold=True)
+    plots.plot_uncertainties(params_fit, params_boot, star=the_star, planet=planet_b)
