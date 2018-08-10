@@ -5,7 +5,7 @@ import observer
 import orbit
 
 
-def plot_fit(t_obs, rv_obs, errors=None, system=None, param_fit=None, param_boots=None):
+def plot_fit(t_obs, rv_obs, errors=None, system=None, param_fit=None, param_boots=None, phase_fold=False):
     """
     Plot the observed RVs, true RVs, fitted RVs, and residuals.
 
@@ -29,6 +29,103 @@ def plot_fit(t_obs, rv_obs, errors=None, system=None, param_fit=None, param_boot
     Generates plots
     """
 
+    def get_phase_fold(t, p):
+        return (t % p) / p
+
+    t_full = np.arange(t_obs[0], t_obs[-1], 0.05)  # evenly & highly sampled JDs
+    t_one_period = np.linspace(t_obs[0], t_obs[0] + system.planets[0].period, 200)
+    phase_full = np.arange(0, 1.005, 0.005)
+    phase = get_phase_fold(t_full, system.planets[0].period)
+    phase_sorted = np.array(sorted(phase))
+    t_obs_fold = get_phase_fold(t_obs, system.planets[0].period)
+
+    fig = plt.figure(figsize=(8, 4))
+    nrow = 2
+    ncol = 1
+    gs = gridspec.GridSpec(nrow, ncol, height_ratios=[3, 1], wspace=0.0, hspace=0.0)
+
+    assert not(param_fit is None and param_boots is not None), "Must provide param_fit is param_boots is given."
+
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax1.errorbar((t_obs if not phase_fold else t_obs_fold), rv_obs, yerr=errors, color='C0', marker='o',
+                 linestyle='', label='observed', zorder=3)
+
+    if system is not None:
+        rv_true = observer.get_system_RVs(system, t_full)
+        if phase_fold:
+            rv_true_sorted = [t for _, t in sorted(zip(phase, rv_true))]
+            ax1.plot(phase_sorted, rv_true_sorted, '-', color='C1', label='true', zorder=1)
+        else:
+            ax1.plot(t_full, rv_true, '-', color='C1', label='true', zorder=1)
+
+    if param_fit is not None:
+        rv_fit = orbit.get_RV(P=param_fit['P'], K=param_fit['K'], e=param_fit['e'], tp=param_fit['tp'],
+                              w=param_fit['w'], v0=param_fit['v0'], t=t_full)
+        if phase_fold:
+            rv_fit_sorted = [t for _, t in sorted(zip(phase, rv_fit))]
+            ax1.plot(phase_sorted, rv_fit_sorted, '--', color='C2', label='fit', zorder=2)
+        else:
+            ax1.plot(t_full, rv_fit, '--', color='C2', label='fit', zorder=2)
+
+    if param_boots is not None:
+        for i, param_boot in enumerate(param_boots):
+            rv_boot = orbit.get_RV(P=param_boot['P'], K=param_boot['K'], e=param_boot['e'], tp=param_boot['tp'],
+                                   w=param_boot['w'], v0=param_boot['v0'], t=t_full)
+            if phase_fold:
+                rv_boot_sorted = [t for _, t in sorted(zip(phase, rv_boot))]
+                ax1.plot(phase_sorted, rv_boot_sorted, '-', color='k',
+                         linewidth=1, alpha=0.05, label=('bootstrap' if i == 0 else ''), zorder=0)
+            else:
+                ax1.plot(t_full, rv_boot, '-', color='k',
+                         linewidth=1, alpha=0.05, label=('bootstrap' if i == 0 else ''), zorder=0)
+
+    ax1.set_ylabel('RV (m/s)')
+    ax1.legend()
+    ax1.grid(linestyle='--', alpha=0.3)
+
+    # Plot residuals
+    ax2 = fig.add_subplot(gs[1, 0], sharex=ax1)
+    rv_fit_obs_samples = orbit.get_RV(P=param_fit['P'], K=param_fit['K'], e=param_fit['e'], tp=param_fit['tp'],
+                                      w=param_fit['w'], v0=param_fit['v0'], t=t_obs)
+    residuals = rv_obs - rv_fit_obs_samples
+    ax2.errorbar((t_obs if not phase_fold else t_obs_fold), residuals, yerr=errors, marker='o', color='k',
+                 linestyle='', label='residuals')
+
+    ax2.set_xlabel('JD' if not phase_fold else 'Phase')
+    ax2.set_ylabel('RV (m/s)')
+    ax2.legend()
+    ax2.grid(linestyle='--', alpha=0.3)
+
+    plt.show()
+
+
+def plot_fit_phase_fold(t_obs, rv_obs, period, errors=None, system=None, param_fit=None, param_boots=None):
+    """
+    Plot the observed RVs, true RVs, fitted RVs, and residuals.
+
+    Parameters
+    ----------
+    t_obs: 1D array
+        List of observation epochs (JD)
+    rv_obs: 1D array
+        List of RV observations
+    errors: 1D array or None
+        List of 1 sigma errors for the RVs
+    system: System
+        System object
+    param_fit: Parameters
+        Fitted parameters for the system
+    param_boots: list of Parameters
+        List of fitted parameters for bootstrapped uncertainties
+
+    Returns
+    -------
+    Generates plots
+    """
+
+    def phase_fold(t, p):
+        return (t % p) / p
+
     plt.figure(figsize=(8, 4))
     nrow = 2
     ncol = 1
@@ -38,29 +135,29 @@ def plot_fit(t_obs, rv_obs, errors=None, system=None, param_fit=None, param_boot
 
     ax = plt.subplot((gs[0, 0]))
     if errors is not None:
-        ax.errorbar(t_obs, rv_obs, yerr=errors, color='C0', marker='o', linestyle='', label='observed')
+        ax.errorbar(phase_fold(t_obs, period), rv_obs, yerr=errors, color='C0', marker='o', linestyle='', label='observed')
     else:
-        ax.errorbar(t_obs, rv_obs, color='C0', marker='o', linestyle='', label='observed')
+        ax.errorbar(phase_fold(t_obs, period), rv_obs, color='C0', marker='o', linestyle='', label='observed')
 
     t_full = np.arange(t_obs[0], t_obs[-1], 0.05)
 
     if system is not None:
         rv_true = observer.get_system_RVs(system, t_full)
-        ax.plot(t_full, rv_true, '-', color='C1', label='true')
+        ax.plot(phase_fold(t_full, period), rv_true, '-', color='C1', label='true')
 
     if param_fit is not None:
         rv_fit = orbit.get_RV(P=param_fit['P'], K=param_fit['K'], e=param_fit['e'], tp=param_fit['tp'],
                               w=param_fit['w'], v0=param_fit['v0'], t=t_full)
-        ax.plot(t_full, rv_fit, '--', color='C2', label='fit')
+        ax.plot(phase_fold(t_full, period), rv_fit, '--', color='C2', label='fit')
 
     if param_boots is not None:
         for i, param_boot in enumerate(param_boots):
             rv_boot = orbit.get_RV(P=param_boot['P'], K=param_boot['K'], e=param_boot['e'], tp=param_boot['tp'],
                                    w=param_boot['w'], v0=param_boot['v0'], t=t_full)
             if i == 0:
-                ax.plot(t_full, rv_boot, '-', color='k', linewidth=1, alpha=0.05, label='bootstrap')
+                ax.plot(phase_fold(t_full, period), rv_boot, '-', color='k', linewidth=1, alpha=0.05, label='bootstrap')
             else:
-                ax.plot(t_full, rv_boot, '-', color='k', linewidth=1, alpha=0.05)
+                ax.plot(phase_fold(t_full, period), rv_boot, '-', color='k', linewidth=1, alpha=0.05)
     ax.set_ylabel('RV (m/s)')
     ax.legend()
     ax.grid(linestyle='--', alpha=0.3)
