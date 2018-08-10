@@ -48,13 +48,6 @@ def fit_Keplerian(times, rvs, err=None, report=False,
         err = None
         print('Warning, error bars will be ignored in fitting, since at least one data point as a reported error of 0.')
 
-    def get_residuals(data, model, error):
-        if error is None:
-            residuals = data - model
-        else:
-            residuals = (data - model) / error
-        return residuals
-
     # Define objective function: returns the array to be minimized
     def objective_function(params, t, rv, err=None):
         P_i = params['P'].value
@@ -65,8 +58,10 @@ def fit_Keplerian(times, rvs, err=None, report=False,
         v0_i = params['v0'].value
 
         model = orbit.get_RV(P_i, K_i, e_i, tp_i, w_i, v0_i, t, method='rvos')
-        residuals = get_residuals(rv, model, err)
-        return residuals
+        if err is None:
+            return rv - model
+        else:
+            return (rv - model) / err
 
     # Create a set of Parameters
     parameters = Parameters()
@@ -87,7 +82,7 @@ def fit_Keplerian(times, rvs, err=None, report=False,
     # Calculate final residuals
     model_final = orbit.get_RV(result.params['P'], result.params['K'], result.params['e'], result.params['tp'],
                                result.params['w'], result.params['v0'], times, method='rvos')
-    residuals_final = get_residuals(rvs, model_final, err)
+    residuals_final = rvs - model_final
 
     return result.params, residuals_final
 
