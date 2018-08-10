@@ -1,30 +1,42 @@
+import numpy as np
 from lmfit import minimize, Parameters, report_fit
 from astroML.time_series import lomb_scargle
 from tqdm import tqdm
-import numpy as np
 import orbit
 
 
-def fit_Keplerian(t, rv, err=None, report=False,
+def fit_Keplerian(times, rvs, err=None, report=False,
                   P=None, e=None, tp=None, w=None, K=None, v0=None):
     """
+    All orbital parameters are given as lists whose elements are: [best guess, minimum, maximum].
+    Elements within lists may be set to None to use default values.
+
     Parameters
     ----------
-    t: 1D array
-    rv: 1D array
+    times: 1D array
+    rvs: 1D array
     err: 1D array or None
     report: bool
+    P: list of floats or None
+    e: list of floats or None
+    tp: list of floats or None
+    w: list of floats or None
+    K: list of floats or None
+    v0: list of floats or None
 
     Returns
     -------
-    results.param: Parameters
+    params_fit.param: Parameters
+        Parameter objects with the final fitted values
+    residuals_final: array
+        Residuals: (data-model)/error
     """
     if P is None:
         P = [None, 0, np.inf]
     if e is None:
         e = [0.2, 0.001, 0.999]
     if tp is None:
-        tp = [t[0], -np.inf, np.inf]
+        tp = [times[0], -np.inf, np.inf]
     if w is None:
         w = [0., -np.inf, np.inf]
     if K is None:
@@ -36,8 +48,15 @@ def fit_Keplerian(t, rv, err=None, report=False,
         err = None
         print('Warning, error bars will be ignored in fitting, since at least one data point as a reported error of 0.')
 
+    def get_residuals(data, model, error):
+        if error is None:
+            residuals = data - model
+        else:
+            residuals = (data - model) / error
+        return residuals
+
     # Define objective function: returns the array to be minimized
-    def func(params, t, data, err=None):
+    def objective_function(params, t, rv, err=None):
         P_i = params['P'].value
         e_i = params['e'].value
         tp_i = params['tp'].value
@@ -46,52 +65,31 @@ def fit_Keplerian(t, rv, err=None, report=False,
         v0_i = params['v0'].value
 
         model = orbit.get_RV(P_i, K_i, e_i, tp_i, w_i, v0_i, t, method='rvos')
-        if err is None:
-            return model - data
-        else:
-            return (model - data) / err
+        residuals = get_residuals(rv, model, err)
+        return residuals
 
     # Create a set of Parameters
-    params = Parameters()
-    # params.add('P', value=P_guess, min=P_guess-1, max=P_guess+1)
-    # params.add('e', value=0.1, min=0.01, max=0.9)
-    # params.add('tp', value=t[0])
-    # params.add('w', value=0.)
-    # params.add('K', value=250, min=0., max=400.)
-    # params.add('v0', value=0.)
+    parameters = Parameters()
+    parameters.add('P', value=P[0], min=P[1], max=P[2])
+    parameters.add('e', value=e[0], min=e[1], max=e[2])
+    parameters.add('tp', value=tp[0], min=tp[1], max=tp[2])
+    parameters.add('w', value=w[0], min=w[1], max=w[2])
+    parameters.add('K', value=K[0], min=K[1], max=K[2])
+    parameters.add('v0', value=v0[0], min=v0[1], max=v0[2])
 
-    # User guesses
-    params.add('P', value=P[0], min=P[1], max=P[2])
-    params.add('e', value=e[0], min=e[1], max=e[2])
-    params.add('tp', value=tp[0], min=tp[1], max=tp[2])
-    params.add('w', value=w[0], min=w[1], max=w[2])
-    params.add('K', value=K[0], min=K[1], max=K[2])
-    params.add('v0', value=v0[0], min=v0[1], max=v0[2])
-
-    # ### Perfect guesses
-    # params.add('P', value=21.22)
-    # params.add('e', value=0.67)
-    # params.add('tp', value=13738.529)
-    # params.add('w', value=121. * (np.pi / 180.))
-    # params.add('K', value=275.)
-    # params.add('v0', value=0.)
-
-    ### Slightly off guesses
-    # params.add('P', value=P_guess, min=P_guess-1, max=P_guess+1)
-    # params.add('e', value=0.67, min=0.05, max=1.)
-    # params.add('tp', value=13736)
-    # params.add('w', value=120. * (np.pi / 180.))  # Maybe I should leave w unbounded, and then just regularlize it afterwards
-    # params.add('K', value=220., min=0)
-    # params.add('v0', value=0.3)
-
-    # Do fit, here with leastsq model
-    result = minimize(func, params, args=(t, rv, err))
+    # Least squares fit
+    result = minimize(objective_function, parameters, args=(times, rvs, err))
 
     # Output
     if report:
         report_fit(result)
 
-    return result.params
+    # Calculate final residuals
+    model_final = orbit.get_RV(result.params['P'], result.params['K'], result.params['e'], result.params['tp'],
+                               result.params['w'], result.params['v0'], times, method='rvos')
+    residuals_final = get_residuals(rvs, model_final, err)
+
+    return result.params, residuals_final
 
 
 def bootstrap_MC(t, rv, err, n_iter=100,
@@ -109,13 +107,13 @@ def bootstrap_MC(t, rv, err, n_iter=100,
     if v0 is None:
         v0 = [0., -np.inf, np.inf]
 
-    results_boot = []
+    params_boot = []
     for i in tqdm(range(n_iter)):
         rv_i = np.random.normal(loc=rv, scale=err)
-        result = fit_Keplerian(t, rv_i, err=err, P=P, e=e, tp=tp, w=w, K=K, v0=v0, report=False)
-        results_boot.append(result)
+        param_boot, residuals = fit_Keplerian(t, rv_i, err=err, P=P, e=e, tp=tp, w=w, K=K, v0=v0, report=False)
+        params_boot.append(param_boot)
 
-    return results_boot
+    return params_boot
 
 
 def LSP(dates, RVs, errs, pmin=0.1, pmax=3000., n=10000):
@@ -125,6 +123,7 @@ def LSP(dates, RVs, errs, pmin=0.1, pmax=3000., n=10000):
     return period_list, PG
 
 
+# STILL IN DEVELOPMENT
 def fit_orbit(system, P_G, periodList, times, rvs, niter, n_pls=None, guesses=None, ignorePeriods=None, perThres=None,
               flag='boot', report=False):
     """
