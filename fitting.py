@@ -92,8 +92,26 @@ def fit_Keplerian(times, rvs, err=None, report=False,
     return result.params, residuals_final
 
 
-def bootstrap_MC(t, rv, err, n_iter=100,
+def bootstrap_MC(t, rv, residuals, n_iter=100, replacement=True,
                  P=None, e=None, tp=None, w=None, K=None, v0=None):
+    """
+    Parameters
+    ----------
+    t: 1D array
+    rv: 1D array
+    residuals: 1D array
+    n_iter: int
+    replacement: bool
+    P: list of floats or None
+    e: list of floats or None
+    tp: list of floats or None
+    w: list of floats or None
+    K: list of floats or None
+    v0: list of floats or None
+
+    Returns
+    -------
+    """
     if P is None:
         P = [None, 0, np.inf]
     if e is None:
@@ -109,8 +127,9 @@ def bootstrap_MC(t, rv, err, n_iter=100,
 
     params_boot = []
     for i in tqdm(range(n_iter)):
-        rv_i = np.random.normal(loc=rv, scale=err)
-        param_boot, residuals = fit_Keplerian(t, rv_i, err=err, P=P, e=e, tp=tp, w=w, K=K, v0=v0, report=False)
+        residuals_i = np.random.choice(residuals, len(residuals), replace=replacement)
+        rv_i = rv + residuals_i
+        param_boot, residuals_new = fit_Keplerian(t, rv_i, err=residuals_i, P=P, e=e, tp=tp, w=w, K=K, v0=v0)
         params_boot.append(param_boot)
 
     return params_boot
@@ -231,8 +250,8 @@ def fit_orbit(system, P_G, periodList, times, rvs, niter, n_pls=None, guesses=No
                            max=p_guesses[m] * (1 + perThres))
             params.add('e' + tag, value=0.3, min=0., max=0.9)
             params.add('tp' + tag, value=times[0] + (np.random.random() * p_guesses[m]))
-            params.add('h' + tag, value=0)  #4. * np.random.random() - 2.)
-            params.add('c' + tag, value=0)  #4. * np.random.random() - 2.)
+            params.add('h' + tag, value=0)  # 4. * np.random.random() - 2.)
+            params.add('c' + tag, value=0)  # 4. * np.random.random() - 2.)
 
         params.add('v0', value=0.5 * np.random.random() - 0.25)  # offset parameter; just 1 of these
 

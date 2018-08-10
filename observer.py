@@ -101,7 +101,7 @@ if __name__ == '__main__':
     w_fit = params_fit['w']
     K_fit = params_fit['K']
     v0_fit = params_fit['v0']
-    params_boot = fit.bootstrap_MC(t, rv, errors, n_iter=200,
+    params_boot = fit.bootstrap_MC(t, rv, residuals, n_iter=200, replacement=False,
                                    P=[P_fit, P_fit-1, P_fit+1],
                                    e=[e_fit, 0.01, 0.9],
                                    tp=[tp_fit, -np.inf, np.inf],
