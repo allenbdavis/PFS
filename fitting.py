@@ -327,3 +327,50 @@ def fit_orbit(system, P_G, periodList, times, rvs, niter, n_pls=None, guesses=No
         # # star.params_out = params_out
         # # star.params_out_print = np.array([p_opt,e_opt,tp_opt,np.array(w_opt)*180./pi,K_opt,msini_fit])
         # star.params_LMfit = params
+
+
+def eccentricity_prior(ecc, P):
+    """
+    Returns the Ment et al. 2018 eccentricity prior for a given eccentricity and period.
+
+    Parameters
+    ----------
+    ecc: float or 1D array
+        Eccentricity
+    P: float
+        Period (days)
+    test: bool
+        Provide a test plot
+
+    Returns
+    -------
+    prior: float
+    """
+    # assert 0 <= ecc < 1, "Eccentricity must be between 0 and 1. Given eccentricity: {ecc}.".format(ecc=ecc)
+
+    A = 40.5*P*P - 80.1*P + 152.6
+    B = 10.6*P*P + 3.1*P + 24.3
+    C = 7.*P*P - 43.8*P + 80.8
+    gamma = 0.7*P*P - 4.8*P + 10.5
+    F = (A/(2*C))*(1-np.exp(-C)) + (B/(gamma-1))*(1-(gamma+3)/(2**(gamma+1)))
+
+    prior = ((A * ecc * np.exp(-C*ecc*ecc)) + (B * ((1+ecc)**-gamma - (ecc * (2**-gamma)))))/F
+    return prior
+
+
+if __name__ == '__main__':
+    # Test eccentricity_prior
+    import matplotlib.pyplot as plt
+
+    eccs = np.linspace(0.01, 0.99, 100)
+    # periods = np.logspace(1, 3, 10)
+    periods = [20]
+
+    plt.figure()
+    for per in periods:
+        priors = eccentricity_prior(eccs, per)
+        plt.plot(eccs, priors, label='{per:.2f} days'.format(per=per))
+    plt.xlabel('Eccentricity')
+    plt.ylabel('Frequency')
+    plt.legend()
+    plt.show()
