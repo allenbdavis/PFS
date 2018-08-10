@@ -32,12 +32,12 @@ def plot_fit(t_obs, rv_obs, errors=None, system=None, param_fit=None, param_boot
     def get_phase_fold(t, p):
         return (t % p) / p
 
-    t_full = np.arange(t_obs[0], t_obs[-1], 0.05)  # evenly & highly sampled JDs
-    t_one_period = np.linspace(t_obs[0], t_obs[0] + system.planets[0].period, 200)
-    phase_full = np.arange(0, 1.005, 0.005)
-    phase = get_phase_fold(t_full, system.planets[0].period)
-    phase_sorted = np.array(sorted(phase))
-    t_obs_fold = get_phase_fold(t_obs, system.planets[0].period)
+    if phase_fold:
+        t_full = np.linspace(0, system.planets[0].period, 200)  # evenly & highly sampled days for one period
+        phase = np.linspace(0, 1., 200)
+        t_obs = get_phase_fold(t_obs, system.planets[0].period)
+    else:
+        t_full = np.linspace(t_obs[0], t_obs[-1], 200)  # evenly & highly sampled JDs
 
     fig = plt.figure(figsize=(8, 4))
     nrow = 2
@@ -47,37 +47,24 @@ def plot_fit(t_obs, rv_obs, errors=None, system=None, param_fit=None, param_boot
     assert not(param_fit is None and param_boots is not None), "Must provide param_fit is param_boots is given."
 
     ax1 = fig.add_subplot(gs[0, 0])
-    ax1.errorbar((t_obs if not phase_fold else t_obs_fold), rv_obs, yerr=errors, color='C0', marker='o',
+    ax1.errorbar(t_obs, rv_obs, yerr=errors, color='C0', marker='o',
                  linestyle='', label='observed', zorder=3)
 
     if system is not None:
         rv_true = observer.get_system_RVs(system, t_full)
-        if phase_fold:
-            rv_true_sorted = [t for _, t in sorted(zip(phase, rv_true))]
-            ax1.plot(phase_sorted, rv_true_sorted, '-', color='C1', label='true', zorder=1)
-        else:
-            ax1.plot(t_full, rv_true, '-', color='C1', label='true', zorder=1)
+        ax1.plot((phase if phase_fold else t_full), rv_true, '-', color='C1', label='true', zorder=1)
 
     if param_fit is not None:
         rv_fit = orbit.get_RV(P=param_fit['P'], K=param_fit['K'], e=param_fit['e'], tp=param_fit['tp'],
                               w=param_fit['w'], v0=param_fit['v0'], t=t_full)
-        if phase_fold:
-            rv_fit_sorted = [t for _, t in sorted(zip(phase, rv_fit))]
-            ax1.plot(phase_sorted, rv_fit_sorted, '--', color='C2', label='fit', zorder=2)
-        else:
-            ax1.plot(t_full, rv_fit, '--', color='C2', label='fit', zorder=2)
+        ax1.plot((phase if phase_fold else t_full), rv_fit, '--', color='C2', label='fit', zorder=2)
 
     if param_boots is not None:
         for i, param_boot in enumerate(param_boots):
             rv_boot = orbit.get_RV(P=param_boot['P'], K=param_boot['K'], e=param_boot['e'], tp=param_boot['tp'],
                                    w=param_boot['w'], v0=param_boot['v0'], t=t_full)
-            if phase_fold:
-                rv_boot_sorted = [t for _, t in sorted(zip(phase, rv_boot))]
-                ax1.plot(phase_sorted, rv_boot_sorted, '-', color='k',
-                         linewidth=1, alpha=0.05, label=('bootstrap' if i == 0 else ''), zorder=0)
-            else:
-                ax1.plot(t_full, rv_boot, '-', color='k',
-                         linewidth=1, alpha=0.05, label=('bootstrap' if i == 0 else ''), zorder=0)
+            ax1.plot((phase if phase_fold else t_full), rv_boot, '-', color='k',
+                     linewidth=1, alpha=0.05, label=('bootstrap' if i == 0 else ''), zorder=0)
 
     ax1.set_ylabel('RV (m/s)')
     ax1.legend()
@@ -88,12 +75,12 @@ def plot_fit(t_obs, rv_obs, errors=None, system=None, param_fit=None, param_boot
     rv_fit_obs_samples = orbit.get_RV(P=param_fit['P'], K=param_fit['K'], e=param_fit['e'], tp=param_fit['tp'],
                                       w=param_fit['w'], v0=param_fit['v0'], t=t_obs)
     residuals = rv_obs - rv_fit_obs_samples
-    ax2.errorbar((t_obs if not phase_fold else t_obs_fold), residuals, yerr=errors, marker='o', color='k',
-                 linestyle='', label='residuals')
+    ax2.errorbar(t_obs, residuals, yerr=errors, marker='o', color='k',
+                 linestyle='', label='residuals', zorder=1)
 
+    ax2.axhline(0, color='red', linestyle='--', zorder=0)
     ax2.set_xlabel('JD' if not phase_fold else 'Phase')
-    ax2.set_ylabel('RV (m/s)')
-    ax2.legend()
+    ax2.set_ylabel('Residuals (m/s)')
     ax2.grid(linestyle='--', alpha=0.3)
 
     plt.show()
